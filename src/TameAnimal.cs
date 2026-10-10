@@ -13,6 +13,10 @@ namespace DraftAnimals
     {
         internal static readonly int s_tieKey = "da_tie".GetStableHashCode();
         internal static readonly int s_tiePosKey = "da_tie_pos".GetStableHashCode();
+        internal static readonly int s_tieRadiusKey = "da_tie_r".GetStableHashCode();
+
+        /// <summary>Можно ли привязать к колу (зайцев — нельзя: их носят в сумке, а держит только силок).</summary>
+        public bool m_tetherable = true;
 
         private static readonly List<TameAnimal> s_all = new List<TameAnimal>();
         private static readonly Dictionary<BaseAI, TameAnimal> s_byAI = new Dictionary<BaseAI, TameAnimal>();
@@ -28,12 +32,14 @@ namespace DraftAnimals
         private Rigidbody m_body;
         private ZSyncAnimation m_zanim;
         private HarnessAnimal m_harness;
+        private IFoodEater m_eater;
         private Procreation m_procreation;
 
         private Transform m_head;
         private Vector3 m_headLocal = new Vector3(0f, 1f, 0.5f);
         private bool m_tied;
         private Vector3 m_tiePos;
+        private float m_tieRadius = 3f;
         private int m_turnSign;
 
         private float m_origRandomRange;
@@ -67,8 +73,11 @@ namespace DraftAnimals
         public bool IsTied => TieId != 0L;
         public Vector3 TiePos => Valid ? m_nview.GetZDO().GetVec3(s_tiePosKey, transform.position) : transform.position;
 
-        /// <summary>Зверь может бегать только в этом радиусе от кола.</summary>
+        /// <summary>Длина верёвки привязи из настроек (у кола).</summary>
         public static float TetherRadius => DraftConfig.TetherLength.Value;
+
+        /// <summary>Длина верёвки этого зверя: у кола — из настроек, у силка — короткая петля.</summary>
+        public float TieRadius => Valid ? m_nview.GetZDO().GetFloat(s_tieRadiusKey, TetherRadius) : TetherRadius;
 
         public float Radius => m_character != null ? m_character.GetRadius() : 0.5f;
 
@@ -135,6 +144,7 @@ namespace DraftAnimals
             m_body = GetComponent<Rigidbody>();
             m_zanim = GetComponent<ZSyncAnimation>();
             m_harness = GetComponent<HarnessAnimal>();
+            m_eater = GetComponent<IFoodEater>();
             m_procreation = GetComponent<Procreation>();
             m_head = FindHead(transform);
             if (m_head != null)
@@ -149,7 +159,7 @@ namespace DraftAnimals
             s_all.Add(this);
             if (Valid)
             {
-                m_nview.Register<long, Vector3>("DA_Tie", RPC_Tie);
+                m_nview.Register<long, Vector3, float>("DA_Tie", RPC_Tie);
                 m_nview.Register("DA_Untie", RPC_Untie);
                 m_nview.Register<string>("DA_FeederFed", RPC_FeederFed);
             }
@@ -174,7 +184,7 @@ namespace DraftAnimals
             }
             Vector3 post = TiePos;
             Vector3 pos = m_body.position;
-            if (!DraftRules.TetherPull(pos.x, pos.z, post.x, post.z, TetherRadius, PullSpeed * Time.fixedDeltaTime, out float x, out float z))
+            if (!DraftRules.TetherPull(pos.x, pos.z, post.x, post.z, m_tieRadius, PullSpeed * Time.fixedDeltaTime, out float x, out float z))
             {
                 return;
             }
@@ -201,6 +211,7 @@ namespace DraftAnimals
             if (m_tied)
             {
                 m_tiePos = TiePos;
+                m_tieRadius = TieRadius;
             }
             m_checkTimer -= Time.deltaTime;
             if (m_checkTimer > 0f)
@@ -215,8 +226,8 @@ namespace DraftAnimals
                 m_postMissing = 0f;
                 return;
             }
-            // Кол сломали — через несколько секунд зверь свободен (если кол просто не загружен — ждём).
-            if (TetherPost.Find(TieId, TiePos, 2f) != null)
+            // Кол или силок сломали — через несколько секунд зверь свободен (если они просто не загружены — ждём).
+            if (TetherPost.Find(TieId, TiePos, 2f) != null || Snare.Find(TieId, TiePos, 2f) != null)
             {
                 m_postMissing = 0f;
             }
@@ -238,7 +249,7 @@ namespace DraftAnimals
                 return;
             }
             m_rangeReduced = reduced;
-            m_ai.m_randomMoveRange = reduced ? Mathf.Min(m_origRandomRange, TetherRadius * 0.8f) : m_origRandomRange;
+            m_ai.m_randomMoveRange = reduced ? Mathf.Min(m_origRandomRange, Mathf.Max(0.2f, m_tieRadius * 0.8f)) : m_origRandomRange;
         }
 
         /// <summary>
@@ -251,7 +262,7 @@ namespace DraftAnimals
             {
                 return;
             }
-            if (DraftRules.ClampToCircle(point.x, point.z, m_tiePos.x, m_tiePos.z, TetherRadius, 0.3f, out float x, out float z))
+            if (DraftRules.ClampToCircle(point.x, point.z, m_tiePos.x, m_tiePos.z, m_tieRadius, Mathf.Min(0.3f, m_tieRadius * 0.5f), out float x, out float z))
             {
                 point.x = x;
                 point.z = z;
@@ -273,7 +284,7 @@ namespace DraftAnimals
                 return;
             }
             Vector3 outward = offset / distance;
-            if (DraftRules.SteerAlongRope(dir.x, dir.z, outward.x, outward.z, distance, TetherRadius, 0.6f, ref m_turnSign,
+            if (DraftRules.SteerAlongRope(dir.x, dir.z, outward.x, outward.z, distance, m_tieRadius, Mathf.Min(0.6f, m_tieRadius), ref m_turnSign,
                     out float x, out float z))
             {
                 dir.x = x;
@@ -284,7 +295,7 @@ namespace DraftAnimals
         /// <summary>Дотянется ли привязанный до точки (для еды на земле); свободный — всегда.</summary>
         public bool CanReach(Vector3 point)
         {
-            return !m_tied || Utils.DistanceXZ(point, m_tiePos) <= TetherRadius + Radius + 0.5f;
+            return !m_tied || Utils.DistanceXZ(point, m_tiePos) <= m_tieRadius + Radius + 0.5f;
         }
 
         /// <summary>
@@ -345,7 +356,7 @@ namespace DraftAnimals
             float bestDistance = range;
             foreach (TameAnimal a in s_all)
             {
-                if (a == null || !a.Valid || a.IsDead || !a.IsTamed || a.IsTied)
+                if (a == null || !a.m_tetherable || !a.Valid || a.IsDead || !a.IsTamed || a.IsTied)
                 {
                     continue;
                 }
@@ -367,12 +378,14 @@ namespace DraftAnimals
             return best;
         }
 
-        /// <summary>Привязать (метку и место кола записывает владелец зверя).</summary>
-        public void Tie(long id, Vector3 postPosition)
+        /// <summary>
+        /// Привязать (метку, место и длину верёвки записывает владелец зверя). radius &lt; 0 — длина верёвки кола из настроек.
+        /// </summary>
+        public void Tie(long id, Vector3 postPosition, float radius = -1f)
         {
             if (Valid)
             {
-                m_nview.InvokeRPC("DA_Tie", id, postPosition);
+                m_nview.InvokeRPC("DA_Tie", id, postPosition, radius);
             }
         }
 
@@ -384,16 +397,19 @@ namespace DraftAnimals
             }
         }
 
-        private void RPC_Tie(long sender, long id, Vector3 postPosition)
+        private void RPC_Tie(long sender, long id, Vector3 postPosition, float radius)
         {
             if (!IsOwner)
             {
                 return;
             }
+            float r = radius > 0f ? radius : TetherRadius;
             m_nview.GetZDO().Set(s_tieKey, id);
             m_nview.GetZDO().Set(s_tiePosKey, postPosition);
+            m_nview.GetZDO().Set(s_tieRadiusKey, r);
             m_tied = true;
             m_tiePos = postPosition;
+            m_tieRadius = r;
             // Привязанный никуда не идёт за хозяином и пасётся вокруг кола.
             StopFollowing();
             if (m_ai != null)
@@ -444,9 +460,9 @@ namespace DraftAnimals
             {
                 return false;
             }
-            if (m_harness != null)
+            if (m_eater != null)
             {
-                return m_harness.FoodMultiplier(item.m_shared.m_name) > 0f;
+                return m_eater.FoodMultiplier(item.m_shared.m_name) > 0f;
             }
             if (m_monsterAI != null && m_monsterAI.m_consumeItems != null)
             {
@@ -508,9 +524,9 @@ namespace DraftAnimals
                 return;
             }
             m_feeder = null;
-            if (m_harness != null)
+            if (m_eater != null)
             {
-                m_harness.Feed(m_harness.FoodMultiplier(sharedName));
+                m_eater.Feed(m_eater.FoodMultiplier(sharedName));
             }
             else
             {

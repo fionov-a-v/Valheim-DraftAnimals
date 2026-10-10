@@ -13,15 +13,18 @@ namespace DraftAnimals
 {
     /// <summary>
     /// Постройки молотом (вкладка «Обстановка»): привязь — клон деревянного столба со своим колом и кольцом,
-    /// кормушка — клон деревянного сундука (инвентарь, защита, звуки) с корытом вместо сундука.
+    /// кормушка — клон деревянного сундука (инвентарь, защита, звуки) с корытом вместо сундука,
+    /// силок — тоже клон столба: колышек со шнуром и петлёй на земле.
     /// </summary>
     internal static class Pieces
     {
         public const string PostPrefab = "piece_da_tetherpost";
         public const string FeederPrefab = "piece_da_feeder";
+        public const string SnarePrefab = "piece_da_snare";
 
         private static GameObject s_post;
         private static GameObject s_feeder;
+        private static GameObject s_snare;
 
         public static void Register()
         {
@@ -29,6 +32,8 @@ namespace DraftAnimals
                 new[] { Art.Wood, Art.Iron }, Quaternion.Euler(10f, -30f, 0f));
             s_feeder = Add(FeederPrefab, "piece_chest_wood", BuildFeeder, "$da_feeder", "$da_feeder_desc", DraftConfig.FeederRecipe,
                 Art.FeederMeshes(), new[] { Art.Wood, Art.Fodder }, Quaternion.Euler(25f, -30f, 0f));
+            s_snare = Add(SnarePrefab, "wood_pole", BuildSnare, "$da_snare", "$da_snare_desc", DraftConfig.SnareRecipe, Art.SnareMeshes(),
+                new[] { Art.Wood, Art.Cord, Art.Bait }, Quaternion.Euler(35f, -40f, 0f));
         }
 
         private static GameObject Add(string name, string basePrefab, Action<GameObject> build, string token, string description,
@@ -70,7 +75,25 @@ namespace DraftAnimals
         private static void BuildPost(GameObject prefab)
         {
             WearNTear wear = prefab.GetComponent<WearNTear>();
-            // Привязь — не строительный столб: ни к чему не прищёлкивается и ничего на себе не держит.
+            Transform visual = StripPole(prefab);
+            SetMesh(visual.gameObject, Art.PostMeshes()[0], Art.Wood);
+            AddPart(visual, "ring", Art.PostMeshes()[1], Art.Iron);
+            wear.m_new = visual.gameObject;
+            wear.m_worn = visual.gameObject;
+            wear.m_broken = visual.gameObject;
+
+            BoxCollider box = PoleCollider(prefab);
+            box.center = new Vector3(0f, 0.6f, 0f);
+            box.size = new Vector3(0.16f, 1.2f, 0.16f);
+
+            AddRope(prefab, 0.6f);
+            prefab.AddComponent<TetherPost>();
+        }
+
+        /// <summary>Столб без строительного: ни к чему не прищёлкивается и ничего на себе не держит. Возвращает узел модели.</summary>
+        private static Transform StripPole(GameObject prefab)
+        {
+            WearNTear wear = prefab.GetComponent<WearNTear>();
             foreach (Transform child in prefab.GetComponentsInChildren<Transform>(true))
             {
                 if (child != prefab.transform && (child.name.StartsWith("$hud_snappoint", StringComparison.Ordinal) || child.CompareTag("snappoint")))
@@ -92,12 +115,11 @@ namespace DraftAnimals
             visual.localPosition = Vector3.zero;
             visual.localRotation = Quaternion.identity;
             visual.localScale = Vector3.one;
-            SetMesh(visual.gameObject, Art.PostMeshes()[0], Art.Wood);
-            AddPart(visual, "ring", Art.PostMeshes()[1], Art.Iron);
-            wear.m_new = visual.gameObject;
-            wear.m_worn = visual.gameObject;
-            wear.m_broken = visual.gameObject;
+            return visual;
+        }
 
+        private static BoxCollider PoleCollider(GameObject prefab)
+        {
             Transform colliderGo = prefab.transform.Find("collider");
             BoxCollider box = colliderGo != null ? colliderGo.GetComponent<BoxCollider>() : null;
             if (box == null)
@@ -110,10 +132,12 @@ namespace DraftAnimals
             colliderGo.localPosition = Vector3.zero;
             colliderGo.localRotation = Quaternion.identity;
             colliderGo.localScale = Vector3.one;
-            box.center = new Vector3(0f, 0.6f, 0f);
-            box.size = new Vector3(0.16f, 1.2f, 0.16f);
+            return box;
+        }
 
-            // Верёвка — та же, что у ванильной тележки, только тоньше.
+        /// <summary>Верёвка — та же, что у ванильной тележки, только тоньше (width — доля её толщины).</summary>
+        private static void AddRope(GameObject prefab, float width)
+        {
             LineRenderer rope = prefab.AddComponent<LineRenderer>();
             GameObject cart = PrefabManager.Instance.GetPrefab("Cart");
             LineRenderer cartLine = cart != null ? cart.GetComponent<LineRenderer>() : null;
@@ -121,20 +145,53 @@ namespace DraftAnimals
             {
                 rope.sharedMaterials = cartLine.sharedMaterials;
                 rope.textureMode = cartLine.textureMode;
-                rope.widthMultiplier = cartLine.widthMultiplier * 0.6f;
+                rope.widthMultiplier = cartLine.widthMultiplier * width;
                 rope.widthCurve = cartLine.widthCurve;
                 rope.colorGradient = cartLine.colorGradient;
             }
             else
             {
                 rope.sharedMaterial = Art.DarkLeather;
-                rope.widthMultiplier = 0.03f;
+                rope.widthMultiplier = 0.05f * width;
             }
             rope.useWorldSpace = true;
             rope.positionCount = 0;
             rope.enabled = false;
+        }
 
-            prefab.AddComponent<TetherPost>();
+        // ================================================================== силок
+
+        private static void BuildSnare(GameObject prefab)
+        {
+            WearNTear wear = prefab.GetComponent<WearNTear>();
+            Transform visual = StripPole(prefab);
+            Mesh[] meshes = Art.SnareMeshes();
+            SetMesh(visual.gameObject, meshes[0], Art.Wood);
+            AddPart(visual, "cord", meshes[1], Art.Cord);
+            GameObject bait = AddPart(visual, "bait", meshes[2], Art.Bait);
+            bait.SetActive(false);
+            wear.m_new = visual.gameObject;
+            wear.m_worn = visual.gameObject;
+            wear.m_broken = visual.gameObject;
+            // Хлипкий: зверь или удар легко ломают.
+            wear.m_health = Mathf.Min(wear.m_health, 50f);
+
+            // Колышек твёрдый, а петля на земле — только чтобы на неё можно было навести взгляд: заяц в неё шагает.
+            BoxCollider box = PoleCollider(prefab);
+            box.center = new Vector3(0f, Art.SnarePegHeight * 0.5f, 0f);
+            box.size = new Vector3(0.1f, Art.SnarePegHeight, 0.1f);
+            var loop = new GameObject("loop_collider") { layer = LayerMask.NameToLayer("piece_nonsolid") };
+            loop.transform.SetParent(prefab.transform, false);
+            BoxCollider loopBox = loop.AddComponent<BoxCollider>();
+            loopBox.center = new Vector3(0f, 0.04f, Art.SnareLoopOffset * 0.6f);
+            loopBox.size = new Vector3(Art.SnareLoopRadius * 2.4f, 0.08f, Art.SnareLoopOffset * 1.2f + Art.SnareLoopRadius * 2f);
+
+            Piece piece = prefab.GetComponent<Piece>();
+            piece.m_groundOnly = true;
+            piece.m_groundPiece = false;
+
+            AddRope(prefab, 0.25f);
+            prefab.AddComponent<Snare>().m_baitVisual = bait;
         }
 
         // ================================================================== кормушка
@@ -261,6 +318,7 @@ namespace DraftAnimals
             }
             Apply(s_post, DraftConfig.PostRecipe);
             Apply(s_feeder, DraftConfig.FeederRecipe);
+            Apply(s_snare, DraftConfig.SnareRecipe);
         }
 
         private static void Apply(GameObject prefab, ItemRecipeConfig cfg)
