@@ -40,7 +40,11 @@ namespace DraftAnimals
         [HarmonyPrefix]
         private static bool AnimalAI_UpdateAI(AnimalAI __instance, float dt, ref bool __result)
         {
-            return !HarnessAnimal.TryGet(__instance, out HarnessAnimal animal) || animal.PreUpdateAI(dt, ref __result);
+            if (HarnessAnimal.TryGet(__instance, out HarnessAnimal animal))
+            {
+                return animal.PreUpdateAI(dt, ref __result);
+            }
+            return !HareAnimal.TryGet(__instance, out HareAnimal hare) || hare.PreUpdateAI(dt, ref __result);
         }
 
         [HarmonyPatch(typeof(AnimalAI), nameof(AnimalAI.UpdateAI))]
@@ -50,6 +54,10 @@ namespace DraftAnimals
             if (HarnessAnimal.TryGet(__instance, out HarnessAnimal animal))
             {
                 animal.PostUpdateAI(dt);
+            }
+            else if (HareAnimal.TryGet(__instance, out HareAnimal hare))
+            {
+                hare.PostUpdateAI(dt);
             }
         }
 
@@ -106,6 +114,12 @@ namespace DraftAnimals
         [HarmonyPrefix]
         private static bool Tameable_UseItem(Tameable __instance, Humanoid user, ItemDrop.ItemData item, ref bool __result)
         {
+            HareAnimal hare = __instance.GetComponent<HareAnimal>();
+            if (hare != null && user != null && HareAnimal.IsFood(item))
+            {
+                __result = hare.TryFeed(user, item);
+                return false;
+            }
             HarnessAnimal animal = __instance.GetComponent<HarnessAnimal>();
             if (animal == null || user == null || item == null)
             {
@@ -134,6 +148,11 @@ namespace DraftAnimals
         [HarmonyPrefix]
         private static bool Tameable_Interact(Tameable __instance, Humanoid user, bool hold, bool alt, ref bool __result)
         {
+            HareAnimal hare = __instance.GetComponent<HareAnimal>();
+            if (hare != null)
+            {
+                return HareInteract(hare, user, hold, alt, ref __result);
+            }
             HarnessAnimal animal = __instance.GetComponent<HarnessAnimal>();
             if (animal == null || hold || !animal.IsTamed || !animal.IsHarnessed)
             {
@@ -151,6 +170,40 @@ namespace DraftAnimals
             __instance.Command(user);
             __instance.m_petEffect.Create(__instance.transform.position, __instance.transform.rotation);
             __result = true;
+            return false;
+        }
+
+        /// <summary>
+        /// Заяц команд не слушается: E — взять ручного в сумку (пойманного в силок сначала приручают), Shift+E —
+        /// переименовать ручного (ванильное).
+        /// </summary>
+        private static bool HareInteract(HareAnimal hare, Humanoid user, bool hold, bool alt, ref bool result)
+        {
+            if (hold || !(user is Player player))
+            {
+                return true;
+            }
+            if (!hare.IsTamed)
+            {
+                if (hare.InSnare)
+                {
+                    player.Message(MessageHud.MessageType.Center, "$da_msg_tame_first");
+                }
+                result = false;
+                return false;
+            }
+            if (alt)
+            {
+                return true;
+            }
+            if (!LiveHare.CanTake(player))
+            {
+                player.Message(MessageHud.MessageType.Center, "$da_msg_bag_full");
+                result = false;
+                return false;
+            }
+            hare.RequestBag(ZNet.GetUID());
+            result = true;
             return false;
         }
 
@@ -173,6 +226,16 @@ namespace DraftAnimals
         [HarmonyPrefix]
         private static bool Tameable_GetHoverText(Tameable __instance, ref string __result)
         {
+            HareAnimal hare = __instance.GetComponent<HareAnimal>();
+            if (hare != null)
+            {
+                if (!hare.Valid)
+                {
+                    return true;
+                }
+                __result = Localization.instance.Localize(HareHoverText(__instance, hare));
+                return false;
+            }
             HarnessAnimal animal = __instance.GetComponent<HarnessAnimal>();
             if (animal == null || !animal.Valid || !animal.IsTamed || !animal.IsHarnessed)
             {
@@ -195,6 +258,32 @@ namespace DraftAnimals
             return false;
         }
 
+        /// <summary>Подсказка над зайцем: дикий ловится силком, пойманный и ручной берутся в сумку.</summary>
+        private static string HareHoverText(Tameable tameable, HareAnimal hare)
+        {
+            var text = new StringBuilder();
+            text.Append(tameable.GetHoverName());
+            if (!hare.IsTamed)
+            {
+                if (hare.InSnare)
+                {
+                    string status = hare.FindScare(out _) ? "$hud_tamefrightened" : hare.IsHungry ? "$hud_tamehungry" : "$hud_tameinprogress";
+                    text.Append(" ( $da_hover_snared, $hud_tameness ").Append(hare.Tameness).Append("%, ").Append(status).Append(" )");
+                    text.Append("\n<color=#888888>$da_hover_hare_feed</color>");
+                }
+                else
+                {
+                    text.Append(" ( $hud_wild )");
+                    text.Append("\n<color=#888888>$da_hover_hare_wild</color>");
+                }
+                return text.ToString();
+            }
+            text.Append(" ( $hud_tame, ").Append(tameable.GetStatusString()).Append(" )");
+            text.Append("\n[<color=yellow><b>$KEY_Use</b></color>] $da_take_hare");
+            text.Append("\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $hud_rename");
+            return text.ToString();
+        }
+
         /// <summary>
         /// Подсказка над ручным зверем (и ванильная, и наша): «на привязи» и строка о потомстве — почему его нет или
         /// сколько осталось.
@@ -213,7 +302,8 @@ namespace DraftAnimals
             {
                 line = __result.Length;
             }
-            string extra = animal.IsTied ? " · $da_hover_tied" : "";
+            // Заяц в силке — об этом уже сказано в его подсказке.
+            string extra = animal.IsTied && animal.m_tetherable ? " · $da_hover_tied" : "";
             string breeding = DraftConfig.ShowBreedingInfo.Value ? animal.BreedingStatus() : null;
             if (breeding != null)
             {
@@ -230,6 +320,12 @@ namespace DraftAnimals
         [HarmonyPrefix]
         private static bool Tameable_Tame(Tameable __instance)
         {
+            HareAnimal hare = __instance.GetComponent<HareAnimal>();
+            if (hare != null)
+            {
+                hare.TameByCommand();
+                return false;
+            }
             HarnessAnimal animal = __instance.GetComponent<HarnessAnimal>();
             if (animal == null || animal.Species != Species.Deer)
             {
@@ -239,21 +335,49 @@ namespace DraftAnimals
             return false;
         }
 
-        /// <summary>У оленя нет MonsterAI, и ваниль не видит, что он напуган.</summary>
+        /// <summary>У оленя и зайца нет MonsterAI, и ваниль не видит, что они напуганы.</summary>
         [HarmonyPatch(typeof(Tameable), nameof(Tameable.GetStatusString))]
         [HarmonyPostfix]
         private static void Tameable_GetStatusString(Tameable __instance, ref string __result)
         {
             HarnessAnimal animal = __instance.GetComponent<HarnessAnimal>();
-            if (animal == null || animal.Species != Species.Deer)
+            bool noMonsterAI = (animal != null && animal.Species == Species.Deer) || __instance.GetComponent<HareAnimal>() != null;
+            if (!noMonsterAI)
             {
                 return;
             }
-            BaseAI ai = animal.Character != null ? animal.Character.GetBaseAI() : null;
+            BaseAI ai = __instance.GetComponent<BaseAI>();
             if (ai != null && ai.IsAlerted())
             {
                 __result = "$hud_tamefrightened";
             }
+        }
+
+        // ================================================================== живой заяц
+
+        /// <summary>Глобальный RPC «отдай зайца» — в каждой новой сессии (ZRoutedRpc создаётся заново).</summary>
+        [HarmonyPatch(typeof(Game), "Start")]
+        [HarmonyPostfix]
+        private static void Game_Start()
+        {
+            LiveHare.RegisterRpc();
+        }
+
+        /// <summary>«Живой заяц» из своей сумки (панель быстрого доступа или ПКМ в инвентаре) — выпустить перед собой.</summary>
+        [HarmonyPatch(typeof(Humanoid), nameof(Humanoid.UseItem))]
+        [HarmonyPrefix]
+        private static bool Humanoid_UseItem(Humanoid __instance, Inventory inventory, ItemDrop.ItemData item)
+        {
+            if (!LiveHare.Is(item) || !(__instance is Player) || (inventory != null && inventory != __instance.GetInventory()))
+            {
+                return true;
+            }
+            if (!__instance.GetInventory().ContainsItem(item))
+            {
+                return false;
+            }
+            LiveHare.ReleaseFromInventory(__instance, item);
+            return false;
         }
 
         // ================================================================== тележка

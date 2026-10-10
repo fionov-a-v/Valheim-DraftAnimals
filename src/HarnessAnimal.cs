@@ -10,7 +10,7 @@ namespace DraftAnimals
     /// свой ИИ в упряжи (следование за ведущим, вожжи возницы, паника оленя) и приручение дикого оленя на приманку.
     /// Состояние — в ZDO зверя: упряжь, метка сцепки с тележкой, выносливость. ИИ и запись в ZDO — только у владельца.
     /// </summary>
-    public sealed class HarnessAnimal : MonoBehaviour
+    public sealed class HarnessAnimal : MonoBehaviour, IFoodEater
     {
         public Species m_species;
 
@@ -679,7 +679,7 @@ namespace DraftAnimals
         }
 
         /// <summary>Отметка сытости (у владельца): корм с множителем держит сытость дольше и ускоряет приручение оленя.</summary>
-        internal void Feed(float multiplier)
+        public void Feed(float multiplier)
         {
             if (m_tameable == null)
             {

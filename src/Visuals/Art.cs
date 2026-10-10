@@ -19,11 +19,14 @@ namespace DraftAnimals.Visuals
         private static Material s_iron;
         private static Material s_wood;
         private static Material s_fodder;
+        private static Material s_cord;
+        private static Material s_bait;
         private static readonly Dictionary<Species, Mesh[]> s_harness = new Dictionary<Species, Mesh[]>();
         private static Mesh[] s_item;
         private static Mesh s_bench;
         private static Mesh[] s_post;
         private static Mesh[] s_feeder;
+        private static Mesh[] s_snare;
 
         // ================================================================== материалы
 
@@ -37,6 +40,12 @@ namespace DraftAnimals.Visuals
 
         /// <summary>Корм в кормушке: сено с зеленью.</summary>
         public static Material Fodder => Ensure() ? s_fodder : null;
+
+        /// <summary>Льняной шнур силка.</summary>
+        public static Material Cord => Ensure() ? s_cord : null;
+
+        /// <summary>Приманка в силке: морковь.</summary>
+        public static Material Bait => Ensure() ? s_bait : null;
 
         /// <summary>
         /// Материалы создаются один раз, когда ванильные префабы уже загружены (до этого — null, и вызывающий берёт
@@ -60,6 +69,8 @@ namespace DraftAnimals.Visuals
             s_iron = Clone(source, "da_iron", MetalTexture(9, new Color(0.34f, 0.34f, 0.35f), new Color(0.18f, 0.18f, 0.19f)), flat, 0.35f, 0.55f);
             s_wood = Clone(source, "da_wood", source.mainTexture as Texture2D, null, 0.1f, 0f);
             s_fodder = Clone(source, "da_fodder", FodderTexture(13), flat, 0.05f, 0f);
+            s_cord = Clone(source, "da_cord", MetalTexture(15, new Color(0.8f, 0.74f, 0.6f), new Color(0.58f, 0.52f, 0.4f)), flat, 0.05f, 0f);
+            s_bait = Clone(source, "da_bait", MetalTexture(17, new Color(0.95f, 0.5f, 0.12f), new Color(0.7f, 0.3f, 0.06f)), flat, 0.25f, 0f);
             return true;
         }
 
@@ -500,6 +511,48 @@ namespace DraftAnimals.Visuals
             fodder.AddBox(Vector3.zero, new Vector3(hx * 2f - wall * 2.2f, 0.03f, hz * 2f - wall * 2.2f), Quaternion.identity, 1.5f);
             s_feeder = new[] { planks.ToMesh("da_feeder_planks"), fodder.ToMesh("da_feeder_fodder") };
             return s_feeder;
+        }
+
+        // ================================================================== силок
+
+        /// <summary>Высота колышка силка над землёй, м.</summary>
+        public const float SnarePegHeight = 0.32f;
+
+        /// <summary>Центр петли — на земле перед колышком (по +Z), м.</summary>
+        public const float SnareLoopOffset = 0.38f;
+
+        /// <summary>Радиус петли, м.</summary>
+        public const float SnareLoopRadius = 0.15f;
+
+        /// <summary>
+        /// Силок: [0] — колышек (уходит на 0,15 м в землю) с зарубкой-перекладиной, [1] — шнур от колышка к петле на земле,
+        /// [2] — приманка в петле (две морковки; видна, пока силок заправлен).
+        /// </summary>
+        public static Mesh[] SnareMeshes()
+        {
+            if (s_snare != null)
+            {
+                return s_snare;
+            }
+            var wood = new MeshBuilder();
+            wood.AddCylinder(new Vector3(0f, -0.15f, 0f), SnarePegHeight + 0.15f, 0.022f, 8, 1f);
+            wood.AddBox(new Vector3(0f, SnarePegHeight * 0.72f, 0.05f), new Vector3(0.025f, 0.025f, 0.1f), Quaternion.Euler(-12f, 0f, 0f), 1f);
+            var cord = new MeshBuilder();
+            const float y = 0.025f;
+            var center = new Vector3(0f, y, SnareLoopOffset);
+            cord.AddTube(new List<Vector3>
+            {
+                new Vector3(0f, SnarePegHeight * 0.72f, 0.1f),
+                new Vector3(0f, SnarePegHeight * 0.4f, 0.16f),
+                new Vector3(0f, y + 0.02f, SnareLoopOffset - SnareLoopRadius - 0.03f),
+                new Vector3(0f, y, SnareLoopOffset - SnareLoopRadius),
+            }, 0.006f, 5, 4f);
+            cord.AddTube(MeshBuilder.Ellipse(center, Vector3.right, Vector3.forward, SnareLoopRadius, SnareLoopRadius, 20), 0.006f, 5, 4f);
+            var bait = new MeshBuilder();
+            bait.AddBox(center + new Vector3(-0.02f, 0.02f, 0.01f), new Vector3(0.13f, 0.032f, 0.032f), Quaternion.Euler(0f, 25f, 0f), 4f);
+            bait.AddBox(center + new Vector3(0.025f, 0.02f, -0.025f), new Vector3(0.11f, 0.03f, 0.03f), Quaternion.Euler(0f, -40f, 8f), 4f);
+            s_snare = new[] { wood.ToMesh("da_snare_wood"), cord.ToMesh("da_snare_cord"), bait.ToMesh("da_snare_bait") };
+            return s_snare;
         }
 
         // ================================================================== козлы

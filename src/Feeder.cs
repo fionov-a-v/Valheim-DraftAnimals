@@ -104,7 +104,7 @@ namespace DraftAnimals
             Vector3 position = animal.transform.position;
             bool tied = animal.IsTied;
             Vector3 post = tied ? animal.TiePos : position;
-            float reach = TameAnimal.TetherRadius + 0.3f;
+            float reach = animal.TieRadius + 0.3f;
             foreach (Feeder feeder in s_all)
             {
                 if (feeder == null || !feeder.Valid)

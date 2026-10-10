@@ -1,8 +1,10 @@
-"""Иконка мода 256×256 и баннер 1300×372: олень с дугой и колокольчиком тянет тележку (на баннере — гонка: за ним
-кабан и волк со своими тележками). Плоская картинка в духе вышивки, рисуется кодом без текстур:
+"""Иконка мода 256×256, баннер 1300×372 и превью 1132×636: олень с дугой и колокольчиком тянет тележку (на баннере —
+гонка: за ним кабан и волк со своими тележками; на превью — одна крупная упряжка с возницей на козлах и выглядывающий
+снизу слева заяц, читается и в уменьшенном вчетверо виде). Плоская картинка в духе вышивки, рисуется кодом без текстур:
 
 python3 tests/icon.py package/icon.png                 иконка 256×256
 python3 tests/icon.py media/banner.png --banner        баннер 1300×372 (шапка страницы мода)
+python3 tests/icon.py media/preview.png --preview      превью 1132×636 (главная картинка мода на Nexus)
 """
 import math
 import sys
@@ -194,49 +196,81 @@ def cart(c, x, wheel_spin=0.0, load=True):
     return (x, bed_y - 0.20)
 
 
-def harness(c, withers, trace_at, shaft_end):
-    """Дуга над холкой (видна чуть сбоку — узкий обод), колокольчик под верхом, постромка от оглобли, подпруга."""
+def harness(c, withers, trace_at, shaft_end, bell=1.0, arch=1.0):
+    """Дуга над холкой (видна чуть сбоку — узкий обод), колокольчик под верхом, постромка от оглобли, подпруга.
+    arch > 1 — дуга крупнее и светлее (для превью, где она должна читаться и в миниатюре)."""
     ax, ay = withers
-    rx, ry = 0.16, 0.46           # полуширина обода в проекции и высота над холкой
-    cy = ay + 0.08                # концы дуги — чуть ниже холки, по бокам
+    rx, ry = 0.16 * arch, 0.46 * arch   # полуширина обода в проекции и высота над холкой
+    cy = ay + 0.08                      # концы дуги — чуть ниже холки, по бокам
+    wood = (188, 136, 80) if arch <= 1.0 else (226, 176, 104)
     c.line([shaft_end, trace_at], LEATHER, 0.035)
     c.line([(ax - 0.10, ay + 0.02), (ax - 0.13, ay + 0.44)], LEATHER, 0.06)
-    c.arc(ax, cy, rx, ry, 180, 270, shade(WOOD, 0.6), 0.06)
-    c.arc(ax, cy, rx, ry, 270, 360, WOOD_DARK, 0.095)
-    c.arc(ax, cy, rx, ry, 270, 360, (188, 136, 80), 0.065)
+    c.arc(ax, cy, rx, ry, 180, 270, shade(WOOD, 0.6), 0.06 * arch)
+    c.arc(ax, cy, rx, ry, 270, 360, WOOD_DARK, 0.095 * arch)
+    c.arc(ax, cy, rx, ry, 270, 360, wood, 0.065 * arch)
     top = (ax, cy - ry)
-    bx, by = top[0] - 0.01, top[1] + 0.11
-    c.line([(top[0], top[1] + 0.02), (bx, by - 0.05)], IRON, 0.014)
-    c.poly([(bx - 0.035, by - 0.06), (bx + 0.035, by - 0.06), (bx + 0.075, by + 0.05), (bx - 0.075, by + 0.05)], BRONZE)
-    c.ellipse(bx, by + 0.05, 0.075, 0.02, BRONZE_DARK)
-    c.ellipse(bx, by + 0.075, 0.018, 0.018, BRONZE_DARK)
+    b = bell
+    bx, by = top[0] - 0.01, top[1] + 0.05 + 0.06 * b
+    c.line([(top[0], top[1] + 0.02), (bx, by - 0.05 * b)], IRON, 0.014 * b)
+    c.poly([(bx - 0.035 * b, by - 0.06 * b), (bx + 0.035 * b, by - 0.06 * b), (bx + 0.075 * b, by + 0.05 * b),
+            (bx - 0.075 * b, by + 0.05 * b)], BRONZE)
+    c.ellipse(bx, by + 0.05 * b, 0.075 * b, 0.02 * b, BRONZE_DARK)
+    c.ellipse(bx, by + 0.075 * b, 0.018 * b, 0.018 * b, BRONZE_DARK)
     c.ellipse(ax + rx, cy, 0.035, 0.035, None, IRON, 0.015)  # кольцо постромки
 
 
-def team(c, animal, x, gallop, spin, scale=1.0):
+def driver(c, wx, reins_to):
+    """Возница на передке тележки (wx — ось колеса): шлем, синий плащ, вожжи в руках тянутся к морде зверя."""
+    cape = (44, 74, 138)
+    tunic = (96, 72, 50)
+    skin = (222, 184, 152)
+    helmet = (118, 124, 134)
+    hip = (wx + 0.40, -0.95)
+    shoulder = (wx + 0.50, -1.40)
+    hands = (wx + 0.80, -1.18)
+    # Плащ за спиной, ноги свешиваются вперёд с передка.
+    c.poly([(shoulder[0] - 0.06, shoulder[1] - 0.02), (shoulder[0] + 0.08, shoulder[1]), (hip[0] - 0.02, hip[1] + 0.04),
+            (hip[0] - 0.24, hip[1] + 0.06)], cape)
+    leg(c, (hip[0] + 0.02, hip[1]), (wx + 0.66, -0.93), (wx + 0.70, -0.66), 0.11, (70, 56, 44))
+    c.poly(smooth([(hip[0] - 0.10, hip[1] + 0.02), (hip[0] + 0.12, hip[1] + 0.02), (shoulder[0] + 0.12, shoulder[1] + 0.06),
+                   (shoulder[0] - 0.06, shoulder[1] - 0.02)], 3), tunic)
+    c.line([shoulder, (wx + 0.66, -1.24), hands], tunic, 0.075)  # рука
+    c.ellipse(hands[0], hands[1], 0.045, 0.045, skin)
+    hx, hy = shoulder[0] + 0.03, shoulder[1] - 0.17
+    c.ellipse(hx, hy, 0.105, 0.115, skin)  # голова
+    c.poly([(hx - 0.02, hy + 0.04), (hx + 0.12, hy + 0.04), (hx + 0.04, hy + 0.20)], (206, 160, 90))  # борода
+    c.poly(smooth([(hx - 0.12, hy - 0.01), (hx - 0.10, hy - 0.12), (hx, hy - 0.17), (hx + 0.10, hy - 0.12),
+                   (hx + 0.13, hy - 0.01)], 4), helmet)  # шлем
+    c.line([(hx + 0.07, hy - 0.04), (hx + 0.07, hy + 0.06)], helmet, 0.025)  # наносник
+    # Вожжи: от рук к морде, с лёгким провисом.
+    mx, my = (hands[0] + reins_to[0]) / 2, (hands[1] + reins_to[1]) / 2 + 0.10
+    c.line([hands, (mx, my), reins_to], LEATHER, 0.022)
+
+
+def team(c, animal, x, gallop, spin, scale=1.0, rider=False, bell=1.0, arch=1.0):
     """Зверь с упряжью и тележкой: зверь стоит в x (центр корпуса), тележка — позади."""
     sub = Canvas.__new__(Canvas)
     sub.d, sub.k, sub.ox, sub.oy = c.d, c.k * scale, c.ox + x * c.k, c.oy
     shaft_end = cart(sub, -0.42, spin)
     withers, trace = animal(sub, gallop)
-    harness(sub, withers, trace, shaft_end)
+    harness(sub, withers, trace, shaft_end, bell, arch)
+    if rider:
+        driver(sub, -0.42 - 1.05, (0.86, -1.31))
 
 
 # ===================================================================== фон
 
 def background(w, h, horizon):
     img = Image.new("RGB", (w, h))
-    px = img.load()
+    draw = ImageDraw.Draw(img)
     for y in range(h):
-        t = y / h
         if y < horizon:
             a = y / max(1, horizon)
             col = (int(18 + 60 * a), int(40 + 70 * a), int(58 + 60 * a))  # вечернее небо к горизонту светлее
         else:
             a = (y - horizon) / max(1, h - horizon)
             col = (int(52 - 22 * a), int(78 - 30 * a), int(40 - 16 * a))  # луг
-        for x in range(w):
-            px[x, y] = col
+        draw.line([(0, y), (w, y)], fill=col)
     return img
 
 
@@ -327,6 +361,141 @@ def make_banner(path):
     img.resize((1300, 372), Image.LANCZOS).save(path)
 
 
+def outlined(img, draw_fn, width, color=(14, 18, 22)):
+    """Рисует сцену на прозрачном слое и кладёт под неё тёмную обводку — силуэты читаются и на маленькой картинке."""
+    layer = Image.new("RGBA", img.size)
+    draw_fn(layer)
+    alpha = layer.split()[3]
+    size = width * 2 + 1
+    halo = alpha.filter(ImageFilter.MaxFilter(size))
+    outline = Image.new("RGBA", img.size, color + (255,))
+    outline.putalpha(halo)
+    base = img.convert("RGBA")
+    base.alpha_composite(outline)
+    base.alpha_composite(layer)
+    img.paste(base.convert("RGB"))
+
+
+def dust(img, points, r):
+    """Пыль из-под колёс и копыт: размытые полупрозрачные клубы."""
+    layer = Image.new("RGBA", img.size)
+    d = ImageDraw.Draw(layer)
+    for x, y, s in points:
+        d.ellipse([x - r * s, y - r * s * 0.6, x + r * s, y + r * s * 0.6], fill=(170, 150, 112, 90))
+    layer = layer.filter(ImageFilter.GaussianBlur(r * 0.35))
+    img.paste(Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB"))
+
+
+# Заяц Туманных земель из игры: тёмная чешуйчатая шкура, серые клочья меха на щеках, голая розоватая кожа в ушах
+# и у носа, оранжевые глаза (цвета — с его текстуры hare_d).
+HARE_SKIN = (60, 54, 50)
+HARE_SCALE = (92, 84, 78)
+HARE_FUR = (140, 134, 128)
+HARE_BARE = (156, 108, 94)
+HARE_EYE = (232, 122, 46)
+
+
+def hare_face(layer, k, cx, cy):
+    """Морда игрового зайца анфас: уши торчком, смотрит прямо на зрителя исподлобья. Единица k — радиус головы,
+    (cx, cy) — её центр в пикселях слоя."""
+    c = Canvas(layer, k, cx, cy)
+    ears = []
+    for side in (-1, 1):
+        tilt = 0.10 * side
+        ear = [(0.18, -0.60), (0.30, -1.40), (0.38, -2.20), (0.56, -2.56), (0.78, -2.26), (0.88, -1.40), (0.74, -0.52)]
+        ears.append([(side * x + tilt * (-y - 0.6), y) for x, y in ear])
+    head = [(0.0, -0.98), (0.66, -0.86), (0.98, -0.30), (1.00, 0.36), (0.66, 0.92), (0.0, 1.06), (-0.66, 0.92), (-1.00, 0.36),
+            (-0.98, -0.30), (-0.66, -0.86)]
+    # Клочья меха на щеках торчат в стороны.
+    for side in (-1, 1):
+        tuft = [(0.62, 0.02), (1.22, 0.10), (0.98, 0.26), (1.34, 0.42), (1.02, 0.54), (1.24, 0.74), (0.86, 0.76), (0.98, 0.98),
+                (0.50, 0.92)]
+        c.poly([(side * x, y) for x, y in tuft], HARE_FUR)
+    for ear in ears:
+        c.poly(smooth(ear), HARE_SKIN)
+    c.poly(smooth(head), HARE_SKIN)
+
+    # Чешуя: полукружия рядами по шкуре (только внутри головы и ушей).
+    size = layer.size
+    mask = Image.new("L", size)
+    md = ImageDraw.Draw(mask)
+    for shape in ears + [head]:
+        md.polygon([c.p(x, y) for x, y in smooth(shape)], fill=255)
+    scales = Image.new("RGBA", size)
+    sc = Canvas(scales, k, cx, cy)
+    step = 0.17
+    row = 0
+    y = -2.7
+    while y < 1.1:
+        x = -1.3 + (step / 2 if row % 2 else 0.0)
+        while x < 1.3:
+            sc.arc(x, y, step * 0.55, step * 0.45, 20, 160, HARE_SCALE + (255,), 0.028)
+            x += step
+        y += step * 0.62
+        row += 1
+    layer.paste(scales, (0, 0), Image.composite(scales, Image.new("RGBA", size), mask).split()[3])
+
+    for ear in ears:
+        cxe = sum(x for x, _ in ear) / len(ear)
+        inner = [(cxe + (x - cxe) * 0.5, y * 0.94 - 0.05) for x, y in ear]
+        c.poly(smooth(inner), HARE_BARE)
+    # Серый мех на морде и подбородке, голая кожа вокруг носа.
+    for side in (-1, 1):
+        c.ellipse(side * 0.26, 0.54, 0.34, 0.28, HARE_FUR)
+    c.ellipse(0.0, 0.84, 0.30, 0.20, HARE_FUR)
+    c.ellipse(0.0, 0.30, 0.17, 0.12, HARE_BARE)
+    c.poly([(-0.12, 0.24), (0.12, 0.24), (0.0, 0.36)], (70, 44, 42))
+    c.line([(0.0, 0.36), (0.0, 0.52)], (40, 30, 28), 0.035)
+    c.arc(-0.10, 0.52, 0.10, 0.08, 0, 160, (40, 30, 28), 0.035)
+    c.arc(0.10, 0.52, 0.10, 0.08, 20, 180, (40, 30, 28), 0.035)
+    # Глаза — оранжевые, по бокам головы, под тяжёлыми надбровьями: смотрят прямо на зрителя.
+    for side in (-1, 1):
+        ex, ey = side * 0.52, -0.14
+        c.ellipse(ex, ey, 0.21, 0.19, (22, 16, 14))
+        c.ellipse(ex, ey + 0.01, 0.16, 0.14, HARE_EYE)
+        c.ellipse(ex, ey + 0.01, 0.07, 0.11, (18, 12, 10))
+        c.ellipse(ex - side * 0.05, ey - 0.05, 0.035, 0.035, (255, 236, 200))
+        # Верхнее веко-надбровье скошено к носу — взгляд исподлобья.
+        inner, outer = ex - side * 0.24, ex + side * 0.24
+        c.poly([(outer + side * 0.05, ey - 0.26), (inner - side * 0.05, ey - 0.26), (inner - side * 0.02, ey - 0.01),
+                (outer, ey - 0.13)], HARE_SKIN)
+    for side in (-1, 1):
+        for dy, ty in ((0.42, 0.30), (0.52, 0.52), (0.60, 0.74)):
+            c.line([(side * 0.46, dy), (side * 1.36, ty)], (170, 164, 156), 0.018)
+
+
+def make_preview(path):
+    """Превью 1132×636: одна крупная упряжка — олень с дугой и колокольчиком на скаку, тележка с грузом и возница;
+    голова оленя с рогами — на фоне луны. Уменьшенное вчетверо (283×159) остаётся понятным."""
+    W, H = 1132, 636
+    w, h = W * SS, H * SS
+    horizon = int(h * 0.62)
+    img = background(w, h, horizon)
+    stars(img, horizon, 70, 9)
+    hills(img, horizon, 2.1)
+    road(img, horizon)
+    k = h * 0.40
+    gy = h * 0.93
+    # Упряжка от задка тележки (-2.15) до морды оленя (0.98) — по центру кадра.
+    ox = w * 0.5 + (2.15 - 0.98) * 0.5 * k + 70 * SS  # правее центра: слева внизу выглядывает заяц
+    moon(img, int(ox + 0.70 * k), int(gy - 1.55 * k), int(h * 0.15))
+    shadow(img, int(ox - 0.6 * k), int(gy), int(1.9 * k), int(0.08 * k))
+    dust(img, [(ox - 1.80 * k, gy - 0.10 * k, 1.0), (ox - 2.15 * k, gy - 0.18 * k, 1.3), (ox - 0.95 * k, gy - 0.06 * k, 0.8),
+               (ox - 0.55 * k, gy - 0.08 * k, 0.6)], 0.30 * k)
+
+    def draw(layer):
+        team(Canvas(layer, k, ox, gy), deer, 0.0, True, 0.4, rider=True, bell=1.3, arch=1.3)
+
+    outlined(img, draw, int(0.022 * k))
+
+    # Заяц выглядывает из-за нижнего края слева: подбородок за кадром, уши торчком.
+    def draw_hare(layer):
+        hare_face(layer, 86 * SS, 122 * SS, h - 66 * SS)
+
+    outlined(img, draw_hare, int(0.022 * k))
+    img.resize((W, H), Image.LANCZOS).save(path)
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(__doc__)
@@ -334,6 +503,8 @@ if __name__ == "__main__":
     out = sys.argv[1]
     if "--banner" in sys.argv[2:]:
         make_banner(out)
+    elif "--preview" in sys.argv[2:]:
+        make_preview(out)
     else:
         make_icon(out)
     print(out)

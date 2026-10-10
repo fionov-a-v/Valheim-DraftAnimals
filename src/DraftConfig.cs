@@ -72,6 +72,19 @@ namespace DraftAnimals
         public static ItemRecipeConfig PostRecipe;
         public static ItemRecipeConfig FeederRecipe;
 
+        public static ConfigEntry<string> HareFood;
+        public static ConfigEntry<float> HareLureRange;
+        public static ConfigEntry<float> HareEscapeTime;
+        public static ConfigEntry<float> HareTamingTime;
+        public static ConfigEntry<float> HareScareRange;
+        public static ConfigEntry<float> HareFleeRange;
+        public static ConfigEntry<bool> HareBreeding;
+        public static ConfigEntry<int> MaxHaresNearby;
+        public static ConfigEntry<float> HareKitGrowTime;
+        public static ConfigEntry<float> HareGnawInterval;
+        public static ConfigEntry<float> HareGnawPercent;
+        public static ItemRecipeConfig SnareRecipe;
+
         public static ConfigEntry<bool> ShowMountHud;
         public static ConfigEntry<bool> ShowBreedingInfo;
         public static ConfigEntry<string> DriverSeatOffset;
@@ -82,6 +95,7 @@ namespace DraftAnimals
         private static readonly SpeciesConfig[] s_species = new SpeciesConfig[3];
 
         private static List<KeyValuePair<string, float>> s_deerFood;
+        private static List<KeyValuePair<string, float>> s_hareFood;
 
         /// <summary>Поменялись рецепты упряжи.</summary>
         public static event Action RecipesChanged;
@@ -94,6 +108,10 @@ namespace DraftAnimals
         /// <summary>Чем приманивают и кормят оленя: имя префаба → множитель (скорость приручения и длительность сытости).</summary>
         public static List<KeyValuePair<string, float>> DeerFoodList =>
             s_deerFood ?? (s_deerFood = DraftRules.ParseFood(DeerFood.Value));
+
+        /// <summary>Приманка для силка и корм ручных зайцев: имя префаба → множитель сытости.</summary>
+        public static List<KeyValuePair<string, float>> HareFoodList =>
+            s_hareFood ?? (s_hareFood = DraftRules.ParseFood(HareFood.Value));
 
         public static void Bind(ConfigFile cfg)
         {
@@ -205,6 +223,54 @@ namespace DraftAnimals
                 null);
             PostRecipe = BindItem(cfg, farm, "Post", "piece_workbench", "Wood:3,LeatherScraps:2", Text("Tether post", "Привязь"));
             FeederRecipe = BindItem(cfg, farm, "Feeder", "piece_workbench", "Wood:10", Text("Feeder", "Кормушка"));
+
+            const string hares = "8b - Hares";
+            HareFood = Synced(cfg, hares, "Food", "Carrot,Turnip,JotunPuffs",
+                Text("Bait for snares and food for tame hares: Item:multiplier, comma-separated (the multiplier makes a hare stay fed longer).",
+                    "Приманка для силка и корм ручных зайцев: Предмет:множитель через запятую (множитель продлевает сытость)."),
+                null);
+            HareLureRange = Synced(cfg, hares, "LureRange", 15f,
+                Text("A calm wild hare notices a baited snare from this far, m.",
+                    "С какого расстояния спокойный дикий заяц замечает силок с приманкой, м."),
+                new AcceptableValueRange<float>(1f, 50f));
+            HareEscapeTime = Synced(cfg, hares, "EscapeTime", 300f,
+                Text("A hungry hare left in a snare (nobody fed it by hand) chews through the loop and escapes after this many seconds.",
+                    "Через сколько секунд голодный заяц в силке (никто не покормил его с руки) перегрызает петлю и убегает."),
+                new AcceptableValueRange<float>(10f, 36000f));
+            HareTamingTime = Synced(cfg, hares, "TamingTime", 150f,
+                Text("Seconds a hare in a snare must stay fed and calm to become tame. Feed it by hand.",
+                    "Сколько секунд заяц в силке должен быть сыт и спокоен, чтобы стать ручным. Кормят его с руки."),
+                new AcceptableValueRange<float>(5f, 36000f));
+            HareScareRange = Synced(cfg, hares, "ScareRange", 6f,
+                Text("A hare in a snare struggles and isn't taming while a player stands (not crouching) closer than this, m.",
+                    "Заяц в силке бьётся и не приручается, пока ближе этого стоит игрок в полный рост (не присевший), м."),
+                new AcceptableValueRange<float>(0f, 30f));
+            HareFleeRange = Synced(cfg, hares, "FleeRange", 10f,
+                Text("A tame hare runs away from enemies closer than this, m.",
+                    "Ручной заяц убегает от врагов ближе этого расстояния, м."),
+                new AcceptableValueRange<float>(0f, 50f));
+            HareBreeding = Synced(cfg, hares, "Breeding", true,
+                Text("Tame hares have young: a fed, calm hare with a fed partner within 3 m.",
+                    "Ручные зайцы приносят зайчат: сытый спокойный заяц с сытой парой ближе 3 м."),
+                null);
+            MaxHaresNearby = Synced(cfg, hares, "MaxHaresNearby", 8,
+                Text("Hares stop breeding when this many hares and young are within 10 m.",
+                    "Зайцы перестают размножаться, когда в радиусе 10 м столько зайцев с зайчатами."),
+                new AcceptableValueRange<int>(2, 50));
+            HareKitGrowTime = Synced(cfg, hares, "KitGrowTime", 1500f,
+                Text("Seconds until a young hare grows up. Applies to young born after the change.",
+                    "Через сколько секунд зайчонок вырастает. Действует на зайчат, родившихся после изменения."),
+                new AcceptableValueRange<float>(30f, 36000f));
+            HareGnawInterval = Synced(cfg, hares, "GnawInterval", 60f,
+                Text("How often a tame hare gnaws a wooden building next to it, seconds (a hungry one — twice as often).",
+                    "Как часто ручной заяц грызёт деревянную постройку рядом с собой, с (голодный — вдвое чаще)."),
+                new AcceptableValueRange<float>(5f, 3600f));
+            HareGnawPercent = Synced(cfg, hares, "GnawPercent", 2f,
+                Text("Damage per gnaw, % of the building's full health (core wood — half as much; stone, metal and marble are not gnawed). 0 — hares don't gnaw.",
+                    "Урон за один укус, % от полной прочности постройки (из прочной древесины — вдвое меньше; камень, металл и мрамор не грызут). 0 — зайцы не грызут."),
+                new AcceptableValueRange<float>(0f, 100f));
+            SnareRecipe = BindItem(cfg, hares, "Snare", "piece_workbench", "Wood:2,LinenThread:2", Text("Snare", "Силок"));
+            HareFood.SettingChanged += (_, _) => s_hareFood = null;
 
             ShowMountHud = cfg.Bind("9 - Client", "ShowMountHud", true,
                 Text("While driving, show the animal's health and stamina in the mount panel — for this client only.",
