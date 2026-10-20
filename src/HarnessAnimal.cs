@@ -194,6 +194,7 @@ namespace DraftAnimals
                 m_origWalk = m_character.m_walkSpeed;
                 m_origRun = m_character.m_runSpeed;
                 m_character.m_onDamaged += OnDamaged;
+                m_character.m_onDeath += OnDeath;
             }
             s_all.Add(this);
             if (m_ai != null)
@@ -591,6 +592,24 @@ namespace DraftAnimals
                 ClearFollow();
             }
             UpdateVisual();
+            DropHarness(kind, userPoint - transform.position);
+        }
+
+        /// <summary>Погибший зверь роняет упряжь, как локс седло (OnDeath вызывается у владельца).</summary>
+        private void OnDeath()
+        {
+            if (!IsOwner || !IsHarnessed)
+            {
+                return;
+            }
+            HarnessKind kind = Harness;
+            m_nview.GetZDO().Set(s_harnessKey, 0);
+            DropHarness(kind, Vector3.zero);
+        }
+
+        /// <summary>Предмет упряжи подлетает над зверем (в сторону dir, если задана) и падает рядом.</summary>
+        private void DropHarness(HarnessKind kind, Vector3 dir)
+        {
             GameObject prefab = Items.Prefab(kind);
             if (prefab == null)
             {
@@ -600,7 +619,6 @@ namespace DraftAnimals
             Rigidbody rb = drop.GetComponent<Rigidbody>();
             if (rb != null)
             {
-                Vector3 dir = userPoint - transform.position;
                 dir.y = 0f;
                 rb.AddForce((Vector3.up + (dir.sqrMagnitude > 0.01f ? dir.normalized : Vector3.zero)) * 4f, ForceMode.VelocityChange);
             }

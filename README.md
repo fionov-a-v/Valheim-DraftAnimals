@@ -238,6 +238,7 @@ keep the line `Required Notice: Copyright Fionov Alexander (https://github.com/f
 
 ## Changelog
 
+- **1.1.2** — a harnessed animal drops its harness when it dies (like a lox drops its saddle).
 - **1.1.1** — fix: two players could sit on the driver's bench at once (on a dedicated server or with 3+ players).
 - **1.1.0** — hares: the snare with bait, taming a caught hare by hand-feeding, a live hare in the bag that goes through portals, hare breeding (leverets),
   tame hares eat from the feeder and gnaw wooden buildings.
