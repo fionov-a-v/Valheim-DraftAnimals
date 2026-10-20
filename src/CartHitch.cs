@@ -365,21 +365,36 @@ namespace DraftAnimals
             }
         }
 
+        /// <summary>
+        /// Возница рядом с козлами. Ищем среди загруженных игроков: ZNet.GetAllCharacterZDOS на клиенте знает только
+        /// своего персонажа и хоста — на выделенном сервере возница оказывался «невидим», и козлы считались свободными.
+        /// </summary>
         private bool CheckDriver(long driver)
         {
-            if (driver == 0L || ZNet.instance == null)
+            if (driver == 0L)
             {
                 return false;
             }
             Vector3 seat = m_seat != null ? m_seat.transform.position : transform.position;
-            foreach (ZDO zdo in ZNet.instance.GetAllCharacterZDOS())
+            foreach (Player player in Player.GetAllPlayers())
             {
-                if (zdo.m_uid.UserID == driver)
+                if (player != null && player.GetZDOID().UserID == driver)
                 {
-                    return Vector3.Distance(zdo.GetPosition(), seat) < DriverRange;
+                    return !player.IsDead() && Vector3.Distance(player.transform.position, seat) < DriverRange;
                 }
             }
             return false;
+        }
+
+        /// <summary>Возница, забравший тележку себе, записывает себя сам (его копия могла прийти без отметки).</summary>
+        public void ClaimDriver(long playerId)
+        {
+            if (IsOwner && DriverId != playerId)
+            {
+                m_nview.GetZDO().Set(s_driverKey, playerId);
+                m_validDriver = true;
+                m_invalidDriverTime = 0f;
+            }
         }
 
         public void RequestDrive(long playerId)

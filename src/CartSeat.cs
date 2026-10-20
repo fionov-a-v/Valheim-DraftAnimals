@@ -23,6 +23,8 @@ namespace DraftAnimals
         private float m_weightTimer;
         private HarnessAnimal m_ignoredAnimal;
         private Collider m_ignoredPlayer;
+        private float m_driverCheckTimer;
+        private float m_otherDriverTime;
 
         public HarnessAnimal Animal => m_hitch != null ? m_hitch.Animal : null;
         public CartHitch Hitch => m_hitch;
@@ -55,6 +57,10 @@ namespace DraftAnimals
             }
             Player player = Player.m_localPlayer;
             float dt = Time.deltaTime;
+            if (!CheckDriverSlot(player, dt))
+            {
+                return;
+            }
             m_skillTimer -= dt;
             if (m_skillTimer <= 0f)
             {
@@ -70,6 +76,48 @@ namespace DraftAnimals
                 m_weightTimer = 1f;
                 m_hitch.ReportDriverWeight(DraftConfig.DriverWeight.Value + player.GetInventory().GetTotalWeight());
             }
+        }
+
+        /// <summary>
+        /// На козлах — один возница. Сидящий, у которого тележка, держит отметку на себе; если возницей записан другой
+        /// игрок (ответы пришли одновременно), лишний встаёт. false — встал.
+        /// </summary>
+        private bool CheckDriverSlot(Player player, float dt)
+        {
+            if (m_hitch == null || !m_hitch.Valid)
+            {
+                return true;
+            }
+            m_driverCheckTimer -= dt;
+            if (m_driverCheckTimer > 0f)
+            {
+                return true;
+            }
+            m_driverCheckTimer = 0.5f;
+            long me = player.GetZDOID().UserID;
+            long driver = m_hitch.DriverId;
+            if (driver == me || driver == 0L)
+            {
+                m_otherDriverTime = 0f;
+                m_hitch.ClaimDriver(me);
+                return true;
+            }
+            m_otherDriverTime += 0.5f;
+            if (m_otherDriverTime < 1.5f)
+            {
+                return true;
+            }
+            m_otherDriverTime = 0f;
+            player.Message(MessageHud.MessageType.Center, "$msg_inuse");
+            player.StopDoodadControl();
+            return false;
+        }
+
+        /// <summary>Правит ли этот игрок: возницей записан он (или пока никто).</summary>
+        private bool IsMyDrive(long me)
+        {
+            long driver = m_hitch != null ? m_hitch.DriverId : 0L;
+            return driver == me || driver == 0L;
         }
 
         // ------------------------------------------------------------------ Hoverable / Interactable
@@ -156,7 +204,10 @@ namespace DraftAnimals
             {
                 animal.NView.ClaimOwnership();
             }
+            m_hitch.ClaimDriver(player.GetZDOID().UserID);
             m_lastSent = DriveMode.Stop;
+            m_otherDriverTime = 0f;
+            m_driverCheckTimer = 0.5f;
             player.StartDoodadControl(this);
             player.AttachStart(m_attachPoint, m_hitch.gameObject, false, false, false, "attach_chair", m_detachOffset);
             IgnoreDriverAnimal(player, animal);
@@ -204,12 +255,14 @@ namespace DraftAnimals
         {
             if (m_hitch != null && m_hitch.Valid)
             {
+                long me = player.GetZDOID().UserID;
                 HarnessAnimal animal = m_hitch.Animal;
-                if (animal != null)
+                // Встающий лишний не останавливает зверя настоящего возницы.
+                if (animal != null && IsMyDrive(me))
                 {
                     animal.SendControls(Vector3.zero, DriveMode.Stop, 0f);
                 }
-                m_hitch.ReleaseDrive(player.GetZDOID().UserID);
+                m_hitch.ReleaseDrive(me);
             }
             m_lastSent = DriveMode.Stop;
             player.AttachStop();
@@ -220,7 +273,7 @@ namespace DraftAnimals
         {
             HarnessAnimal animal = Animal;
             Player player = Player.m_localPlayer;
-            if (animal == null || player == null)
+            if (animal == null || player == null || !IsMyDrive(player.GetZDOID().UserID))
             {
                 return;
             }
