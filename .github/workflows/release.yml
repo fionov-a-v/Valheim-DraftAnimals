@@ -1,0 +1,81 @@
+# Тег v<версия> (та же версия в package/manifest.json, DraftAnimals.csproj и Plugin.cs, и строка о ней в
+# Changelog в README.md) делает релиз на GitHub с архивом и публикует его на Thunderstore и Nexus Mods
+# (tools/release/publish.cs, настройки в tools/release/sites.json). Запуск вручную только проверяет, что сайты
+# его примут (--dry-run), ничего не публикуя.
+# Secrets: THUNDERSTORE_TOKEN (service account команды на Thunderstore), NEXUS_API_KEY.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && '--dry-run' || '' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # publish.cs — file-based app, ему нужен .NET 10
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: package
+          path: dist
+
+      - name: Version
+        id: version
+        run: |
+          version=$(python3 -c 'import json;print(json.load(open("package/manifest.json"))["version_number"])')
+          csproj=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' DraftAnimals.csproj)
+          plugin=$(sed -n 's:.*PluginVersion = "\(.*\)";.*:\1:p' src/Plugin.cs)
+          if [ "$csproj" != "$version" ] || [ "$plugin" != "$version" ]; then
+            echo "versions differ: package/manifest.json $version, DraftAnimals.csproj $csproj, src/Plugin.cs $plugin" >&2
+            exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "tag $GITHUB_REF_NAME, but package/manifest.json says $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Release notes
+        id: notes
+        run: |
+          last=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || echo -)
+          dotnet run --file tools/release/publish.cs -- notes README.md "${{ steps.version.outputs.version }}" "$last" "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+
+      - name: GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/DraftAnimals-*.zip --title "Draft Animals ${{ steps.version.outputs.version }}" --notes-file "$RUNNER_TEMP/notes.md"
+
+      - name: Thunderstore
+        env:
+          THUNDERSTORE_TOKEN: ${{ secrets.THUNDERSTORE_TOKEN }}
+        run: dotnet run --file tools/release/publish.cs -- thunderstore dist ${DRY_RUN:+"$DRY_RUN"}
+
+      # если Thunderstore не принял, Nexus всё равно пробуем; неверная версия или нет строки в Changelog — стоп
+      - name: Nexus Mods
+        if: ${{ !cancelled() && steps.version.outcome == 'success' && steps.notes.outcome == 'success' }}
+        env:
+          NEXUS_API_KEY: ${{ secrets.NEXUS_API_KEY }}
+        run: dotnet run --file tools/release/publish.cs -- nexus dist --notes "$RUNNER_TEMP/notes.md" ${DRY_RUN:+"$DRY_RUN"}

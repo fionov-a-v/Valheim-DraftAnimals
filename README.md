@@ -159,6 +159,18 @@ dotnet run --project tests/LogicTests
 (`media/preview.png`, 1132×636) рисуются кодом: `python3 tests/icon.py package/icon.png`,
 `python3 tests/icon.py media/banner.png --banner` и `python3 tests/icon.py media/preview.png --preview`.
 
+Сборку на чистой машине (как в GitHub Actions) даёт `tools/ci/fetch-deps.sh <папка>`: библиотеки игры из бесплатного
+выделенного сервера, BepInEx и Jötunn — в раскладке, которую ждёт `DraftAnimals.csproj`; дальше
+`dotnet build -c Release -p:ValheimDir=<папка> -p:SkipDeploy=true`. CI (`.github/workflows/ci.yml`) на каждый push и
+pull request собирает мод, гоняет тесты и кладёт архив в артефакты.
+
+Выпуск версии: поднять версию в `package/manifest.json`, `DraftAnimals.csproj` и `src/Plugin.cs`, добавить строку
+`- **x.y.z** — ...` в Changelog в конце README и запушить тег `vx.y.z`. `release.yml` проверит, что версии совпадают,
+сделает релиз на GitHub с архивом и опубликует его на Thunderstore и Nexus Mods (`tools/release/publish.cs`,
+настройки — `tools/release/sites.json`; запуск вручную из вкладки Actions — только проверка, без публикации). Нужны
+secrets репозитория: `THUNDERSTORE_TOKEN` (service account команды на Thunderstore) и `NEXUS_API_KEY`; Nexus
+пропускается, пока в `sites.json` не указан `modFileId` (id основного файла мода на Nexus).
+
 ## Лицензия
 
 [PolyForm Noncommercial License 1.0.0](LICENSE.md). Кратко (полный текст — в `LICENSE.md`):
@@ -232,6 +244,12 @@ breeding, each animal's capacity, speeds, stamina and harness fit, recipes, teth
 server, as is section 8b (hares); section 9 (mount panel, breeding line, driver pose) is per client. All descriptions are in English and Russian.
 
 **Source:** https://github.com/fionov-a-v/Valheim-DraftAnimals
+
+**Releases:** bump the version in `package/manifest.json`, `DraftAnimals.csproj` and `src/Plugin.cs`, add a
+`- **x.y.z** — ...` line to the Changelog below and push the tag `vx.y.z`: GitHub Actions builds and tests the mod,
+makes a GitHub release with the package and publishes it to Thunderstore and Nexus Mods (secrets `THUNDERSTORE_TOKEN`
+and `NEXUS_API_KEY`; settings in `tools/release/sites.json`). `tools/ci/fetch-deps.sh <dir>` gets what the mod builds
+against (the game's assemblies from the free dedicated server, BepInEx, Jötunn) for a build without the game.
 
 **License:** [PolyForm Noncommercial License 1.0.0](LICENSE.md) — free to use, modify and share, no commercial use;
 keep the line `Required Notice: Copyright Fionov Alexander (https://github.com/fionov-a-v/Valheim-DraftAnimals)` when redistributing.

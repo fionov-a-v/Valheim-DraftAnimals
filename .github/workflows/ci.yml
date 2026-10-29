@@ -1,0 +1,60 @@
+# Собирает мод против библиотек игры (из бесплатного выделенного сервера) и BepInEx/Jötunn (Thunderstore),
+# гоняет тесты правил и собирает архив для Thunderstore (./package.sh). Он же — сборка в release.yml.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # свойства MSBuild из окружения: собрать против скачанного, не копируя в игру
+      ValheimDir: ${{ github.workspace }}/../valheim
+      SkipDeploy: 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      # выделенный сервер обновляется вместе с игрой: раз в неделю скачиваем заново
+      - name: Week
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the game's assemblies, BepInEx and Jötunn
+        id: deps
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.ValheimDir }}
+          key: deps-${{ steps.week.outputs.week }}-${{ hashFiles('tools/ci/versions.env', 'tools/ci/fetch-deps.sh') }}
+
+      - name: Fetch dependencies
+        run: |
+          # steamcmd — 32-битная программа
+          if [ "${{ steps.deps.outputs.cache-hit }}" != true ]; then sudo apt-get update -q && sudo apt-get install -yq lib32gcc-s1; fi
+          tools/ci/fetch-deps.sh "$ValheimDir"
+
+      - name: Build
+        run: dotnet build DraftAnimals.csproj -c Release
+
+      - name: Test
+        run: dotnet run --project tests/LogicTests
+
+      - name: Package
+        run: ./package.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package
+          path: dist/DraftAnimals-*.zip
+          if-no-files-found: error

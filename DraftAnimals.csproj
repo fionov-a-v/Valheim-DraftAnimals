@@ -28,6 +28,8 @@
 
   <ItemGroup>
     <Compile Remove="tests/**" />
+    <!-- tools/release/publish.cs — отдельная программа для релиза (dotnet run), не часть мода -->
+    <Compile Remove="tools/**" />
   </ItemGroup>
 
   <ItemGroup>

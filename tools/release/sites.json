@@ -1,0 +1,16 @@
+{
+  "thunderstore": {
+    "url": "https://thunderstore.io",
+    "team": "fionov",
+    "community": "valheim",
+    "categories": ["mods", "vehicles", "transportation", "building"]
+  },
+  "nexus": {
+    "url": "https://api.nexusmods.com",
+    "game": "valheim",
+    "modId": 4284,
+    "modFileId": "8105484",
+    "name": "DraftAnimals",
+    "description": "Draft Animals {version}. Needs BepInExPack Valheim and Jotunn. Install on every player and on the server."
+  }
+}
