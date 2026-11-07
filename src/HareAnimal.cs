@@ -8,7 +8,7 @@ namespace DraftAnimals
     /// Заяц (Туманные земли). Дикий ходит на ванильном ИИ животных, но спокойный замечает силок с приманкой и идёт к нему.
     /// Пойманного приручают в силке: кормят с руки, и пока он сыт и спокоен (рядом никто не стоит в полный рост — надо
     /// присесть), приручение идёт; ручного силок отпускает. Ручной пасётся, убегает от врагов, ест из кормушки и с руки,
-    /// не слушается команд и не привязывается — переносят его в сумке (E — взять). Со временем грызёт деревянные
+    /// не слушается команд и не привязывается — переносят его в сумке (E — взять, <see cref="CarryAnimal"/>). Со временем грызёт деревянные
     /// постройки рядом: загоны приходится чинить или строить из камня.
     /// </summary>
     public sealed class HareAnimal : MonoBehaviour, IFoodEater
@@ -81,9 +81,6 @@ namespace DraftAnimals
             }
         }
 
-        /// <summary>Имя, данное игроком (переносится вместе с зайцем в сумке).</summary>
-        public string CustomName => Valid ? m_nview.GetZDO().GetString(ZDOVars.s_tamedName) : "";
-
         private void Awake()
         {
             m_nview = GetComponent<ZNetView>();
@@ -104,7 +101,6 @@ namespace DraftAnimals
             }
             if (Valid)
             {
-                m_nview.Register<long>("DA_Bag", RPC_Bag);
                 m_nview.Register<float>("DA_Feed", RPC_Feed);
             }
             m_gnawTimer = Random.Range(0f, DraftConfig.HareGnawInterval.Value);
@@ -614,27 +610,6 @@ namespace DraftAnimals
                 default:
                     return 0f;
             }
-        }
-
-        // ================================================================== в сумку
-
-        /// <summary>Взять зайца в сумку: владелец зайца убирает его из мира и отдаёт предмет «Живой заяц» игроку peer.</summary>
-        public void RequestBag(long peer)
-        {
-            if (Valid)
-            {
-                m_nview.InvokeRPC("DA_Bag", peer);
-            }
-        }
-
-        private void RPC_Bag(long sender, long peer)
-        {
-            if (!IsOwner || IsDead)
-            {
-                return;
-            }
-            LiveHare.Give(peer, Level, CustomName);
-            ZNetScene.instance.Destroy(gameObject);
         }
     }
 }

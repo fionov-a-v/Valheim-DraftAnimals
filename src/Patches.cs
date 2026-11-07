@@ -153,6 +153,12 @@ namespace DraftAnimals
             {
                 return HareInteract(hare, user, hold, alt, ref __result);
             }
+            CarryAnimal carry = __instance.GetComponent<CarryAnimal>();
+            if (carry != null && carry.CanCarry && !hold && !alt && user is Player carrier)
+            {
+                __result = carry.TryTake(carrier);
+                return false;
+            }
             HarnessAnimal animal = __instance.GetComponent<HarnessAnimal>();
             if (animal == null || hold || !animal.IsTamed || !animal.IsHarnessed)
             {
@@ -196,14 +202,8 @@ namespace DraftAnimals
             {
                 return true;
             }
-            if (!LiveHare.CanTake(player))
-            {
-                player.Message(MessageHud.MessageType.Center, "$da_msg_bag_full");
-                result = false;
-                return false;
-            }
-            hare.RequestBag(ZNet.GetUID());
-            result = true;
+            CarryAnimal carry = hare.GetComponent<CarryAnimal>();
+            result = carry != null && carry.TryTake(player);
             return false;
         }
 
@@ -234,6 +234,12 @@ namespace DraftAnimals
                     return true;
                 }
                 __result = Localization.instance.Localize(HareHoverText(__instance, hare));
+                return false;
+            }
+            CarryAnimal carry = __instance.GetComponent<CarryAnimal>();
+            if (carry != null && carry.CanCarry)
+            {
+                __result = Localization.instance.Localize(CarryHoverText(__instance));
                 return false;
             }
             HarnessAnimal animal = __instance.GetComponent<HarnessAnimal>();
@@ -278,8 +284,16 @@ namespace DraftAnimals
                 }
                 return text.ToString();
             }
+            return CarryHoverText(tameable);
+        }
+
+        /// <summary>Подсказка над ручным зверем, которого можно взять в сумку (заяц, курица): E — взять, Shift+E — имя.</summary>
+        private static string CarryHoverText(Tameable tameable)
+        {
+            var text = new StringBuilder();
+            text.Append(tameable.GetHoverName());
             text.Append(" ( $hud_tame, ").Append(tameable.GetStatusString()).Append(" )");
-            text.Append("\n[<color=yellow><b>$KEY_Use</b></color>] $da_take_hare");
+            text.Append("\n[<color=yellow><b>$KEY_Use</b></color>] $da_take_animal");
             text.Append("\n[<color=yellow><b>$KEY_AltPlace + $KEY_Use</b></color>] $hud_rename");
             return text.ToString();
         }
@@ -360,15 +374,15 @@ namespace DraftAnimals
         [HarmonyPostfix]
         private static void Game_Start()
         {
-            LiveHare.RegisterRpc();
+            LiveAnimal.RegisterRpc();
         }
 
-        /// <summary>«Живой заяц» из своей сумки (панель быстрого доступа или ПКМ в инвентаре) — выпустить перед собой.</summary>
+        /// <summary>Живой зверь из своей сумки (панель быстрого доступа или ПКМ в инвентаре) — выпустить перед собой.</summary>
         [HarmonyPatch(typeof(Humanoid), nameof(Humanoid.UseItem))]
         [HarmonyPrefix]
         private static bool Humanoid_UseItem(Humanoid __instance, Inventory inventory, ItemDrop.ItemData item)
         {
-            if (!LiveHare.Is(item) || !(__instance is Player) || (inventory != null && inventory != __instance.GetInventory()))
+            if (!LiveAnimal.Is(item) || !(__instance is Player) || (inventory != null && inventory != __instance.GetInventory()))
             {
                 return true;
             }
@@ -376,8 +390,21 @@ namespace DraftAnimals
             {
                 return false;
             }
-            LiveHare.ReleaseFromInventory(__instance, item);
+            LiveAnimal.ReleaseFromInventory(__instance, item);
             return false;
+        }
+
+        /// <summary>В подсказке живого зверя в сумке — имя, которое ему дали.</summary>
+        [HarmonyPatch(typeof(ItemDrop.ItemData), nameof(ItemDrop.ItemData.GetTooltip),
+            new[] { typeof(ItemDrop.ItemData), typeof(int), typeof(bool), typeof(float), typeof(int), typeof(bool) })]
+        [HarmonyPostfix]
+        private static void ItemData_GetTooltip(ItemDrop.ItemData item, bool appending, ref string __result)
+        {
+            string name = appending ? "" : LiveAnimal.GivenName(item);
+            if (name.Length > 0)
+            {
+                __result = "<color=orange>" + name + "</color>\n" + __result;
+            }
         }
 
         // ================================================================== тележка

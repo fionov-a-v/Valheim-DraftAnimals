@@ -6,7 +6,7 @@
 возницы на козлах — хоть устраивайте гонки в кооперативе. Оленя теперь можно приручить: на приманку, тихо и терпеливо,
 и ручные олени приносят оленят. Зайцев ловят силком с приманкой, носят в сумке (и через порталы) и разводят — только
 держите их подальше от деревянных стен. Для хозяйства — привязь (кол с верёвкой) и кормушка, из которой звери едят сами.
-Сделано для Valheim 1.0.17 на BepInEx 5 и Jötunn 2.30. Тексты в игре — на русском и английском (по языку игры).
+Сделано для Valheim 1.0.21 на BepInEx 5 и Jötunn 2.30. Тексты в игре — на русском и английском (по языку игры).
 
 ## Установка
 
@@ -108,9 +108,10 @@ Linux (родная версия): в Steam впишите в параметры
    в петле и приручение стоит; **присядьте** — он успокоится. Приручённого зайца силок отпускает.
 5. Голодный заяц (никто не покормил) через **5 минут** перегрызает петлю и убегает; приманка к тому времени уже съедена.
 
-Ручного зайца **E** берёт в сумку как предмет **«Живой заяц»**: он весит 2, не складывается в стопку и **проходит через
-порталы**. Используйте его из инвентаря или выбросьте — заяц выскочит ручным, с прежним уровнем и именем.
-**Shift+E** на ручном зайце — переименовать. Команд он не слушается и к колу не привязывается: зайцев переносят в сумке, а держат в загоне.
+Ручного зайца **E** берёт в сумку — предмет так и называется, «Заяц»: он весит 2, не складывается в стопку и **проходит
+через порталы**. Используйте его из инвентаря или выбросьте — заяц выскочит ручным, с прежним уровнем и именем (имя видно
+в подсказке предмета). **Shift+E** на ручном зайце — переименовать. Так же в сумку берут **курицу** (весит 3): E на ней
+вместо «погладить», Shift+E — переименовать. Команд он не слушается и к колу не привязывается: зайцев переносят в сумке, а держат в загоне.
 
 Ручной заяц пасётся там, где его выпустили, убегает от врагов ближе 10 м и ест морковь, репу и грибы Йотунов — с руки,
 с земли и из кормушки. **Размножаются зайцы быстрее кабанов:** сытая пара ближе 3 м, симпатия до 2 (у кабана 3),
@@ -179,7 +180,7 @@ Required Notice: Copyright Fionov Alexander (https://github.com/fionov-a-v/Valhe
 Hitch a tame boar, deer or wolf to the vanilla cart. The animal pulls it behind you, or a driver steers it from the
 cart's bench — race your friends in co-op. Deer become tameable with food lures, and tame deer have fawns. Hares are
 caught with baited snares, carried in your bag (even through portals) and bred — just keep them away from wooden walls.
-For the farm there is a tether post and a feeder the animals eat from on their own. Made for Valheim 1.0.17 with BepInEx 5 and
+For the farm there is a tether post and a feeder the animals eat from on their own. Made for Valheim 1.0.21 with BepInEx 5 and
 Jötunn 2.30. English and Russian in-game text.
 
 **Install:** needs BepInExPack Valheim and Jötunn. With r2modman/Thunderstore Mod Manager install DraftAnimals and the
@@ -218,9 +219,10 @@ or how close it is.
 Puffs from the hotbar. A calm hare within 15 m comes to the bait and gets caught. **Feed it by hand** (the same food,
 looking at the hare or the snare): while it is fed and calm, taming takes **2.5 minutes**. Standing upright within 6 m
 makes it struggle and stalls taming — **crouch** and it calms down. Once tame, the snare lets it go. A hungry hare nobody
-fed chews through the loop and escapes after 5 minutes. **E** puts a tame hare in your bag as a **Live hare**: it weighs
-2, doesn't stack and **goes through portals**; use or drop it to let it out, still tame, with its level and name.
-Shift+E renames it; hares don't take commands and can't be tied to a post. Tame hares
+fed chews through the loop and escapes after 5 minutes. **E** puts a tame hare in your bag (the item is just called "Hare"):
+it weighs 2, doesn't stack and **goes through portals**; use or drop it to let it out, still tame, with its level and name
+(the name shows in the item tooltip). **Hens** go in the bag the same way (weight 3): E on a hen takes it instead of
+petting it. Shift+E renames it; hares don't take commands and can't be tied to a post. Tame hares
 flee enemies within 10 m and eat carrots, turnips and Jotun puffs from your hand, the ground or a feeder. **They breed
 faster than boars** (a fed partner within 3 m, 2 love points, up to 8 hares and young within 10 m); leverets grow up in
 25 minutes. **Hares gnaw wood:** once a minute (twice as often when hungry) a tame hare bites 2% of the health off a wooden
@@ -238,6 +240,7 @@ keep the line `Required Notice: Copyright Fionov Alexander (https://github.com/f
 
 ## Changelog
 
+- **1.2.0** — tame hens can be put in the bag like hares (E), go through portals and are let out tame; carried animals are named like the animal itself ("Hare", "Hen"), a given name shows in the item tooltip. Built for Valheim 1.0.21.
 - **1.1.3** — fix: a hare released from the inventory indoors (or an animal hitched under a roof) no longer appears on the roof.
 - **1.1.2** — a harnessed animal drops its harness when it dies (like a lox drops its saddle).
 - **1.1.1** — fix: two players could sit on the driver's bench at once (on a dedicated server or with 3+ players).

@@ -13,7 +13,7 @@ namespace DraftAnimals
     {
         public const string PluginGuid = "draftanimals";
         public const string PluginName = "Draft Animals";
-        public const string PluginVersion = "1.1.3";
+        public const string PluginVersion = "1.2.0";
 
         private Harmony m_harmony;
         private ConfigFileWatcher m_configWatcher;
@@ -43,7 +43,7 @@ namespace DraftAnimals
             Items.Register();
             Pieces.Register();
             Young.Register();
-            LiveHare.Register();
+            LiveAnimal.Register();
         }
 
         private static void ApplyRecipes()

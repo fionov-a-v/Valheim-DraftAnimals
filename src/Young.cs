@@ -44,7 +44,7 @@ namespace DraftAnimals
                 // Если взрослый уже дополнен модом (сцена создавалась раньше) — убираем лишнее: упряжь, размножение, добычу.
                 foreach (Type type in new[]
                          {
-                             typeof(HarnessAnimal), typeof(HareAnimal), typeof(TameAnimal), typeof(Procreation), typeof(Tameable),
+                             typeof(HarnessAnimal), typeof(HareAnimal), typeof(CarryAnimal), typeof(TameAnimal), typeof(Procreation), typeof(Tameable),
                              typeof(CharacterDrop),
                          })
                 {

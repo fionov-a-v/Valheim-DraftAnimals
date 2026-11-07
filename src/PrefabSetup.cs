@@ -68,6 +68,15 @@ namespace DraftAnimals
                     prefab.AddComponent<TameAnimal>();
                 }
             }
+            // Ручного зайца и курицу можно взять в сумку.
+            foreach (string name in LiveAnimal.AnimalPrefabs)
+            {
+                GameObject prefab = scene.GetPrefab(name);
+                if (prefab != null && prefab.GetComponent<Character>() != null && prefab.GetComponent<CarryAnimal>() == null)
+                {
+                    prefab.AddComponent<CarryAnimal>();
+                }
+            }
             TameAnimal hareTame = hare != null ? hare.GetComponent<TameAnimal>() : null;
             if (hareTame != null)
             {
